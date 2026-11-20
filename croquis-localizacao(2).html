@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="pt-AO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Croquis de localização</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style id="pageStyle"></style>
+<style>
+:root{--ink:#16323a;--bg:#e7ecee;--line:#b9c4c8;--accent:#1f6f78;--muted:#5d7077;--red:#c62828}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+[hidden]{display:none!important}
+.off{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid #f3a53a;outline-offset:1px}
+
+/* barra superior e separadores */
+.topbar{position:sticky;top:0;z-index:2000;display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--ink);color:#fff}
+.topbar h1{flex:1;margin:0;font-size:16px;font-weight:650;white-space:nowrap}
+.btn{border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:6px;padding:8px 12px;min-height:40px;cursor:pointer}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.small{min-height:36px;padding:5px 10px;font-size:14px}
+.tabs{display:flex;background:#fff;border-bottom:1px solid var(--line)}
+.tabs button{flex:1;border:0;background:none;padding:12px 4px;font-weight:600;color:var(--muted);border-bottom:3px solid transparent;cursor:pointer}
+.tabs button[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent)}
+
+/* painéis */
+.panel{display:none;padding:12px}
+.panel.active{display:block}
+.panel h2{margin:0 0 10px;font-size:17px}
+.panel h3{margin:18px 0 8px;font-size:14px;text-transform:uppercase;letter-spacing:.04em;color:var(--accent)}
+.field{display:block;margin-bottom:10px}
+.field>span{display:block;font-size:13px;color:var(--muted);margin-bottom:3px}
+input[type=text],input[type=date],input[type=number],select,textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:6px;background:#fff}
+input:disabled{background:#eef2f3;color:var(--muted)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row2.w{grid-template-columns:130px 1fr}
+.chk{display:flex;align-items:center;gap:8px;margin:0 0 10px;min-height:40px}
+.chk input{width:20px;height:20px;flex:none}
+.hint,.msg{font-size:13px;color:var(--muted);margin:6px 0}
+.msg.err{color:#b3261e}
+.search{display:flex;gap:8px}
+.search input{flex:1}
+.seg{display:flex;margin:10px 0}
+.seg button{flex:1;padding:9px 6px;border:1px solid var(--accent);background:#fff;color:var(--accent);font-weight:600;cursor:pointer}
+.seg button:first-child{border-radius:6px 0 0 6px}
+.seg button:last-child{border-radius:0 6px 6px 0;border-left:0}
+.seg button.on{background:var(--accent);color:#fff}
+#edmap{height:min(56vh,420px);min-height:300px;border:1px solid var(--line);border-radius:6px;isolation:isolate}
+#coordInfo{font-size:13px;margin:8px 0}
+#vlist{list-style:none;margin:0;padding:0}
+#vlist li{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #dde4e6;font-size:14px}
+#vlist li span{flex:1}
+#vlist .x{border:0;background:none;font-size:22px;line-height:1;color:#b3261e;cursor:pointer;padding:2px 8px}
+#vlist .empty{color:var(--muted)}
+details{margin:10px 0}
+summary{cursor:pointer;color:var(--accent);font-weight:600;min-height:32px}
+.vtx{background:none;border:0}
+.vtx b{display:block;background:var(--ink);color:#fff;font:700 11px/18px Arial;text-align:center;border:1px solid #fff;border-radius:3px}
+.sheet-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:8px}
+.sheet-tools label{font-size:12px;color:var(--muted)}
+.sheet-tools input{width:64px;padding:6px}
+.tool-group{display:flex;flex-wrap:wrap;gap:8px;align-items:end}
+#sheetWrap.real{overflow:auto}
+.folha .val{white-space:pre-line}
+
+/* ecrã largo */
+@media (min-width:1000px){
+  .tabs{display:none}
+  .app{display:grid;grid-template-columns:400px 1fr;grid-template-rows:auto 1fr;gap:0 8px;align-items:start}
+  .panel{display:block!important}
+  #p-dados{grid-column:1;grid-row:1}
+  #p-mapa{grid-column:1;grid-row:2}
+  #p-folha{grid-column:2;grid-row:1/span 2}
+}
+@media (max-width:520px){.topbar h1{display:none}.topbar .btn{flex:1;padding:8px 6px}}
+
+#sheetWrap{width:100%;overflow:hidden}
+.sheet{position:relative;margin:0 auto;background:#fff;color:#000;font-family:Arial,Helvetica,sans-serif;transform-origin:top left;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.25);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.mapbox{position:relative;isolation:isolate;background:#dfe5e3}
+.lf{position:absolute;inset:0}
+.pin{background:none;border:0}
+.pin svg{display:block;overflow:visible}
+.gl{background:none;border:0;color:#fff;font:700 8.5px/12px Arial;text-shadow:0 0 2px #000,0 0 3px #000;white-space:nowrap;text-align:center}
+.gl.dark{color:#111;text-shadow:0 0 2px #fff,0 0 3px #fff}
+.gl span{display:block}
+.gl.v span{writing-mode:vertical-rl;transform:rotate(180deg)}
+.leaflet-control-scale-line{font-weight:700}
+
+/* ===== folha A4 completa ===== */
+#sheet{width:210mm;height:296.5mm}
+#sheet::after{content:"";position:absolute;inset:9px;border:.75px solid #111;pointer-events:none}
+.frame{position:absolute;inset:15px;border:2px solid #111;padding:5px 5px 15px;display:flex;flex-direction:column}
+.hdr{display:flex;flex:none;height:44px;margin-bottom:4px;border:1px solid #111}
+.hdr .sq{width:66px;background:#f29b2f;display:flex;align-items:center;justify-content:center}
+.hdr .ttl{flex:1;display:flex;align-items:center;justify-content:center;font:800 20px Arial;color:#1c2f57;letter-spacing:.01em;text-transform:uppercase}
+.frame .mapbox{flex:none;border:1px solid #111}
+#vtable{position:absolute;left:0;top:0;z-index:1000;background:#fff;border-collapse:collapse;font:7.5px/1.25 Arial;color:#000}
+#vtable th,#vtable td{border:1px solid #111;padding:1px 4px;text-align:center;white-space:nowrap}
+#vtable th{font-weight:700}
+.north{position:absolute;right:8px;top:6px;z-index:1000}
+.info{flex:1;min-height:0;display:grid;grid-template-columns:200px 170px 1fr 110px;grid-template-rows:80px 1fr 98px;grid-template-areas:"thumb folha prop prop" "thumb shape loc area" "esc espec fins tec";border-left:1px solid #111}
+.info>*{border-right:1px solid #111;border-bottom:1px solid #111;padding:4px 6px;min-width:0;overflow:hidden;position:relative}
+.thumb{grid-area:thumb;padding:0!important;display:flex;flex-direction:column}
+.thumb .hd{flex:none;height:15px;font:700 8.5px/15px Arial;color:var(--red);padding:0 5px;text-transform:uppercase}
+.thumb .mapbox{flex:1;border:0;border-top:1px solid #111}
+.folha{grid-area:folha}.prop{grid-area:prop}.shape{grid-area:shape;padding:2px!important}.loc{grid-area:loc}.area{grid-area:area}
+.esc{grid-area:esc;display:grid;grid-template-columns:1fr 1fr;padding:0!important}
+.esc>div{padding:4px 6px;border-right:1px solid #111}.esc>div:last-child{border-right:0}
+.espec{grid-area:espec}.fins{grid-area:fins}.tec{grid-area:tec}
+.lab{font:700 8.5px/1.2 Arial;color:var(--red);text-transform:uppercase}
+.val{font-size:10.5px;text-align:center;margin-top:2px}
+.prop .val{font-weight:700;font-size:11px;white-space:pre-line;text-transform:uppercase}
+.prop .nif{font-size:9.5px;margin-top:2px}
+.loc .val{text-transform:uppercase;font-weight:700;font-size:10px}
+.loc .refl{text-transform:none;font-weight:400;font-size:8.5px;margin-top:3px}
+.area .val{font-weight:700;font-size:10.5px;margin-bottom:3px}
+.area .val.sm{font-size:8.5px}
+.fins{display:flex;flex-direction:column;justify-content:center;text-align:center;color:var(--red);font-weight:700}
+.fins .t{font-size:11px;text-transform:uppercase}
+.fins .f{font-size:9.5px;text-transform:uppercase;margin-top:3px}
+.fins .f2{font-size:9px;color:#000;margin-top:3px}
+.tec img{display:block;max-width:100%;max-height:54px;margin:2px auto 0}
+.tec .tn{font-size:8px;text-align:center;margin-top:1px}
+.shape svg{width:100%;height:100%;display:block}
+.foot{position:absolute;left:8px;right:8px;bottom:3px;font:6.5px Arial;color:#333;white-space:nowrap;overflow:hidden}
+
+/* ===== folha alta (modelo licenciamento) 720 x 1300 ===== */
+#sheet2{width:720px;height:1300px}
+.a-frame{position:absolute;inset:14px;border:3px solid #000;padding:12px 10px 14px;display:flex;flex-direction:column}
+.a-hdr{flex:none;height:104px;display:flex;border:2px solid #000}
+.a-hdr .sq{width:104px;flex:none;background:#f7931e;display:flex;align-items:center;justify-content:center}
+.a-hdr .sq:first-child{border-right:2px solid #000}
+.a-hdr .sq:last-child{border-left:2px solid #000}
+.a-hdr .ttl{flex:1;display:flex;align-items:center;justify-content:center;font:400 30px/1 Arial,Helvetica,sans-serif;white-space:nowrap;text-transform:uppercase;letter-spacing:-.01em}
+.a-map{flex:1;min-height:300px;margin-top:14px;border:3px solid #000}
+.a-inset{position:absolute;left:42px;top:15px;width:300px;height:226px;background:#fff;box-shadow:0 10px 22px rgba(0,0,0,.6);z-index:900;overflow:hidden}
+.a-ov{position:absolute;inset:0;width:100%;height:100%;z-index:1000;pointer-events:none}
+.a-label{position:absolute;z-index:1001;transform:translate(-50%,-50%);color:#fff;font:700 24px Arial;letter-spacing:.03em;text-shadow:0 0 5px #000,0 0 3px #000;white-space:nowrap;text-transform:uppercase}
+.a-credit{position:absolute;left:6px;bottom:4px;z-index:1001;font:9px Arial;color:#fff;text-shadow:0 0 3px #000,0 0 2px #000}
+.a-gap{flex:none;height:96px}
+.a-bottom{flex:none;display:flex;gap:12px;align-items:flex-end}
+.a-left{width:252px;flex:none;display:flex;flex-direction:column;gap:12px}
+.a-right{flex:1;min-width:0;display:flex;flex-direction:column;gap:11px}
+.abox{border:2px solid #000;padding:8px 10px 9px;font:700 13px/1.36 Arial;white-space:pre-line;overflow-wrap:anywhere}
+.abox .ht{display:block;color:#e53935;text-transform:uppercase}
+.abox .red{color:#e53935;text-transform:uppercase}
+.sigarea{height:62px;position:relative;display:flex;flex-direction:column;justify-content:flex-end;align-items:center}
+.sigarea img{position:absolute;bottom:20px;max-height:46px;max-width:200px}
+.sigline{width:94%;border-top:1px solid #000;text-align:center;font:700 12px Arial;padding-top:3px}
+.datel{font:700 13px Arial;margin:0 0 0 10px;white-space:nowrap}
+
+/* impressão */
+@media print{
+  html,body{background:#fff}
+  .topbar,.tabs,#p-dados,#p-mapa,.sheet-tools,.hint-print{display:none!important}
+  .app{display:block}
+  #p-folha{display:block!important;padding:0}
+  #sheetWrap{height:auto!important;overflow:visible}
+  .sheet{transform:none!important;box-shadow:none;margin:0}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <h1>Croquis de localização</h1>
+  <button class="btn" id="btnSave" type="button">Guardar</button>
+  <button class="btn" id="btnOpen" type="button">Abrir</button>
+  <button class="btn primary" id="btnPrint" type="button">Imprimir / PDF</button>
+  <input type="file" id="openFile" accept=".json,application/json" hidden>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="Secções">
+  <button role="tab" data-tab="dados" aria-selected="true">Dados</button>
+  <button role="tab" data-tab="mapa" aria-selected="false">Mapa</button>
+  <button role="tab" data-tab="folha" aria-selected="false">Folha</button>
+</nav>
+
+<main class="app">
+  <section class="panel active" id="p-dados">
+    <h2>Dados do croquis</h2>
+    <label class="field"><span>Formato da folha</span>
+      <select id="f-layout">
+        <option value="alta">Folha alta (modelo licenciamento, 720 × 1300)</option>
+        <option value="a4">A4 completo (topográfico e quadro de dados)</option>
+      </select></label>
+    <label class="field"><span>Tipo de pedido</span>
+      <select id="f-model">
+        <option value="terreno">Terreno (vértices, área e perímetro)</option>
+        <option value="empresa">Empresa ou estabelecimento (só ponto)</option>
+        <option value="residencia">Residência (só ponto)</option>
+      </select></label>
+
+    <h3>Requerente</h3>
+    <label class="field"><span id="lab-owner">Proprietário</span><textarea id="f-owner" rows="3"></textarea></label>
+    <div class="row2 w">
+      <label class="field"><span>Documento</span>
+        <select id="f-idtipo"><option>NIF</option><option>BI</option><option>Passaporte</option><option>Nº de contribuinte</option></select></label>
+      <label class="field"><span>Número</span><input type="text" id="f-nif" inputmode="text"></label>
+    </div>
+    <div class="row2 w">
+      <label class="field"><span>Registo</span>
+        <input type="text" id="f-regtipo" list="regList">
+        <datalist id="regList"><option value="Alvará"><option value="Nº de registo"><option value="Nº de processo"><option value="Licença nº"><option value="Alvará nº"></datalist></label>
+      <label class="field"><span>Número de registo</span><input type="text" id="f-regnum"></label>
+    </div>
+
+    <h3>Localização</h3>
+    <div class="row2">
+      <label class="field"><span>Bairro</span><input type="text" id="f-bairro"></label>
+      <label class="field"><span>Município</span><input type="text" id="f-municipio"></label>
+    </div>
+    <div class="row2">
+      <label class="field"><span>Província</span><input type="text" id="f-provincia"></label>
+      <label class="field"><span>Folha (carta, só A4)</span><input type="text" id="f-folha" placeholder="ex.: 107 - A - 8 utm"></label>
+    </div>
+    <label class="field"><span>Ponto de referência</span><input type="text" id="f-ref"></label>
+    <label class="field"><span>Endereço completo (folha alta, opcional)</span><textarea id="f-endereco" rows="3" placeholder="Se ficar vazio, usa bairro, município e província"></textarea></label>
+
+    <h3>Terreno e actividade</h3>
+    <label class="field"><span>Dimensão do terreno (metros)</span><input type="text" id="f-dim" placeholder="ex.: 20 por 15"></label>
+    <label class="chk"><input type="checkbox" id="f-dimrect"> Desenhar o terreno nos mapas (rectângulo da dimensão)</label>
+    <label class="field"><span>Rotação do rectângulo (graus, sentido horário)</span><input type="number" id="f-rot" value="0" min="-180" max="180" step="any"></label>
+    <p class="hint">O rectângulo fica centrado no pino e é indicativo. Se tiver os vértices do topógrafo, use-os.</p>
+    <label class="field"><span>Actividade licenciada (opcional)</span><textarea id="f-atividade" rows="4" placeholder="Actividade Principal: ...&#10;Classes e sub-classes: ...&#10;Dimensão: ..."></textarea></label>
+
+    <h3>Pedido</h3>
+    <label class="field"><span>Fins</span>
+      <input type="text" id="f-fins" list="finsList">
+      <datalist id="finsList">
+        <option value="Serviços administrativos legais">
+        <option value="Legalização de igreja">
+        <option value="Licenciamento comercial - Licença de funcionamento">
+        <option value="Licenciamento comercial">
+        <option value="Processo de terreno">
+        <option value="Abertura de empresa">
+        <option value="Registo de associação">
+      </datalist></label>
+    <label class="field"><span>Especialidade (A4)</span><input type="text" id="f-espec"></label>
+    <div class="row2">
+      <label class="field"><span>Data</span><input type="date" id="f-data"></label>
+      <label class="chk" style="align-self:end"><input type="checkbox" id="f-datablank"> Data em branco (à mão)</label>
+    </div>
+    <label class="field"><span>Nome do técnico (A4)</span><input type="text" id="f-tecnico"></label>
+    <label class="field"><span>Assinatura ou carimbo (imagem)</span><input type="file" id="f-sigfile" accept="image/*"></label>
+    <button class="btn small" id="btnSigClear" type="button">Remover assinatura</button>
+
+    <h3>Mapa</h3>
+    <label class="field"><span>Nome na etiqueta do mapa (folha alta)</span><input type="text" id="f-label" placeholder="ex.: L CAPA SOLUÇÕES"></label>
+    <label class="chk"><input type="checkbox" id="f-inset" checked> Mostrar mapa ampliado no topo (folha alta)</label>
+    <div class="row2">
+      <label class="field"><span>Escala (A4)</span>
+        <select id="f-escala">
+          <option value="500">1 : 500</option><option value="1000">1 : 1000</option><option value="2000" selected>1 : 2000</option>
+          <option value="2500">1 : 2500</option><option value="5000">1 : 5000</option><option value="10000">1 : 10000</option>
+          <option value="manual">Manual (usar o zoom)</option>
+        </select></label>
+      <label class="field"><span>Mapa de cima (A4)</span>
+        <select id="f-basemap"><option value="topo">Topográfico</option><option value="osm">Ruas (mais limpo)</option></select></label>
+    </div>
+  </section>
+
+  <section class="panel" id="p-mapa">
+    <h2>Localização</h2>
+    <div class="search">
+      <input type="text" id="q" placeholder="Plus Code, coordenadas ou graus" autocomplete="off">
+      <button class="btn primary" id="qGo" type="button">Ir</button>
+    </div>
+    <p class="hint">Aceita Plus Code (48FQ+98W), decimais (-8.875, 13.338) ou graus (8°52'30.1"S 13°20'20.2"E).</p>
+    <p class="msg" id="qMsg" role="status"></p>
+    <div class="seg" id="segWrap">
+      <button type="button" id="m-ponto" class="on">Marcar local</button>
+      <button type="button" id="m-terreno">Traçar terreno</button>
+    </div>
+    <div id="edmap"></div>
+    <p id="coordInfo"></p>
+    <div id="vertSection">
+      <h3>Vértices do terreno</h3>
+      <ol id="vlist"></ol>
+      <div class="row2" style="margin-top:8px">
+        <button class="btn small" id="vUndo" type="button">Desfazer último</button>
+        <button class="btn small" id="vClear" type="button">Limpar todos</button>
+      </div>
+      <details>
+        <summary>Colar vértices do topógrafo</summary>
+        <p class="hint">Uma linha por vértice: Este e Norte em UTM, ou latitude e longitude. Substitui os vértices actuais.</p>
+        <textarea id="vimp" rows="4" placeholder="295387.46 9003432.18&#10;295407.89 9003429.76"></textarea>
+        <button class="btn small" id="vImp" type="button" style="margin-top:6px">Importar</button>
+        <p class="msg" id="vMsg" role="status"></p>
+      </details>
+      <p id="statsLine" class="hint"></p>
+    </div>
+  </section>
+
+  <section class="panel" id="p-folha">
+    <div class="sheet-tools">
+      <div class="tool-group" id="toolsAlta">
+        <label>Zoom satélite<br><input type="number" id="f-zD" min="12" max="19" step="any"></label>
+        <label>Zoom ampliado<br><input type="number" id="f-zE" min="12" max="19" step="any"></label>
+      </div>
+      <div class="tool-group" id="toolsA4" hidden>
+        <label>Zoom topo<br><input type="number" id="f-zA" min="10" max="19" step="any"></label>
+        <label>Zoom satélite<br><input type="number" id="f-zB" min="10" max="19" step="any"></label>
+        <label>Zoom detalhe<br><input type="number" id="f-zC" min="10" max="19" step="any"></label>
+      </div>
+      <button class="btn small" id="btnFit" type="button">Ajustar ao terreno</button>
+      <button class="btn small" id="btnView" type="button">Ver tamanho real</button>
+      <button class="btn small primary" id="btnJpg" type="button">Imagem JPG</button>
+      <button class="btn small" id="btnPng" type="button">Imagem PNG</button>
+    </div>
+    <p class="msg" id="expMsg" role="status"></p>
+
+    <div id="sheetWrap">
+      <!-- A4 completo -->
+      <div class="sheet off" id="sheet">
+        <div class="frame">
+          <div class="hdr">
+            <div class="sq"></div>
+            <div class="ttl">Croquis de localização</div>
+            <div class="sq">
+              <svg viewBox="0 0 66 44" width="66" height="44" aria-hidden="true"><g transform="translate(33 22)"><circle r="15" fill="none" stroke="#1c2f57" stroke-width="1.4"/><path d="M0-19 L4-4 L19 0 L4 4 L0 19 L-4 4 L-19 0 L-4-4Z" fill="#1c2f57"/><path d="M0-19 L4-4 L0 0 L-4-4Z" fill="#c62828"/></g></svg>
+            </div>
+          </div>
+          <div class="mapbox" style="height:330px"><div class="lf" id="mapA"></div><table id="vtable"></table></div>
+          <div class="mapbox" style="height:385px;border-top:0"><div class="lf" id="mapB"></div>
+            <svg class="north" width="26" height="44" viewBox="0 0 26 44" aria-hidden="true"><path d="M13 3 L21 30 L13 24 L5 30 Z" fill="#fff" stroke="#111" stroke-width="1.5"/><text x="13" y="43" text-anchor="middle" font-size="13" font-weight="700" font-family="Arial" fill="#fff" stroke="#000" stroke-width="2.5" paint-order="stroke">N</text></svg>
+          </div>
+          <div class="info">
+            <div class="thumb"><div class="hd">&#9679; Terreno localizado</div><div class="mapbox"><div class="lf" id="mapC"></div></div></div>
+            <div class="folha"><div class="lab" id="s-folhaLab">Folha:</div><div class="val" id="s-folha"></div></div>
+            <div class="prop"><div class="lab" id="s-ownerLab">Proprietário:</div><div class="val" id="s-owner"></div></div>
+            <div class="shape"><svg id="shape" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true"></svg></div>
+            <div class="loc"><div class="lab">Localidade:</div><div class="val" id="s-loc"></div></div>
+            <div class="area" id="s-area"></div>
+            <div class="esc"><div><div class="lab">Escala:</div><div class="val" id="s-escala"></div></div><div><div class="lab">Data:</div><div class="val" id="s-data"></div></div></div>
+            <div class="espec"><div class="lab">Especialidade:</div><div class="val" id="s-espec"></div></div>
+            <div class="fins"><div class="t">Croquis de localização</div><div class="f" id="s-fins"></div><div class="f2" id="s-reg"></div></div>
+            <div class="tec"><div class="lab">Técnico:</div><img id="s-sig" alt="Assinatura do técnico" hidden><div class="tn" id="s-tecnome"></div></div>
+          </div>
+          <div class="foot" id="s-foot"></div>
+        </div>
+      </div>
+
+      <!-- Folha alta -->
+      <div class="sheet" id="sheet2">
+        <div class="a-frame">
+          <div class="a-hdr">
+            <div class="sq"></div>
+            <div class="ttl">Croquis de localização</div>
+            <div class="sq">
+              <svg viewBox="0 0 104 100" width="104" height="100" aria-hidden="true"><g transform="translate(52 50)"><circle r="27" fill="none" stroke="#111" stroke-width="1.5"/><path d="M0-31 L6-6 L31 0 L6 6 L0 31 L-6 6 L-31 0 L-6-6Z" fill="#111"/><path d="M0-31 L6-6 L0 0 L-6-6Z" fill="#c62828"/><path d="M-20-20 L-4-4 M20-20 L4-4 M-20 20 L-4 4 M20 20 L4 4" stroke="#111" stroke-width="2"/></g><g font-family="Arial" font-size="9" font-weight="700" text-anchor="middle" fill="#111"><text x="52" y="11">N</text><text x="52" y="96">S</text><text x="9" y="53">W</text><text x="95" y="53">E</text></g></svg>
+            </div>
+          </div>
+          <div class="mapbox a-map" id="aMap">
+            <div class="lf" id="mapD"></div>
+            <div class="a-inset" id="aInset"><div class="lf" id="mapE"></div></div>
+            <svg class="a-ov" id="aOverlay" aria-hidden="true"></svg>
+            <div class="a-label" id="aLabel"></div>
+            <div class="a-credit">Imagem © Esri. Mapa © OpenStreetMap.</div>
+          </div>
+          <div class="a-gap"></div>
+          <div class="a-bottom">
+            <div class="a-left">
+              <div class="sigarea"><img id="a-sig" alt="Assinatura do requerente" hidden><div class="sigline">REQUERENTE</div></div>
+              <div class="datel" id="a-data"></div>
+              <div class="abox" id="a-coord"></div>
+              <div class="abox" id="a-dim" hidden></div>
+              <div class="abox" id="a-ativ" hidden></div>
+            </div>
+            <div class="a-right">
+              <div class="abox" id="a-fins"></div>
+              <div class="abox" id="a-req"></div>
+              <div class="abox" id="a-loc"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="hint hint-print">Para PDF: “Imprimir / PDF”, depois “Guardar como PDF” (a página já sai no tamanho certo). As imagens JPG e PNG saem com resolução 3 vezes maior.</p>
+  </section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+//#pure-start
+const OLC='23456789CFGHJMPQRVWX';
+function olcValid(c){return /^[23456789CFGHJMPQRVWX]{2,8}\+[23456789CFGHJMPQRVWX]{2,}$/.test(c);}
+function olcDecodeFull(code){
+  code=code.replace('+','');
+  let lat=-90,lng=-180,size=20,cl=20,cg=20;
+  const n=Math.min(code.length,10);
+  for(let i=0;i<n;i+=2){
+    lat+=OLC.indexOf(code[i])*size;
+    lng+=OLC.indexOf(code[i+1])*size;
+    cl=cg=size;size/=20;
+  }
+  for(let i=10;i<code.length;i++){
+    const idx=OLC.indexOf(code[i]);
+    cl/=5;cg/=4;
+    lat+=Math.floor(idx/4)*cl;
+    lng+=(idx%4)*cg;
+  }
+  return {lat:lat+cl/2,lng:lng+cg/2};
+}
+function olcEncode(lat,lng){
+  lat=Math.min(90,Math.max(-90,lat));lng=((lng+180)%360+360)%360-180;
+  const LA=(lat+90)*8000,LO=(lng+180)*8000;
+  let la=Math.floor(LA+1e-7),lo=Math.floor(LO+1e-7);
+  if(la>=1440000)la=1439999;
+  const fl=Math.max(0,LA-la),fo=Math.max(0,LO-lo);
+  let code='';
+  for(let i=0;i<5;i++){code=OLC[la%20]+OLC[lo%20]+code;la=Math.floor(la/20);lo=Math.floor(lo/20);}
+  const row=Math.min(4,Math.floor(fl*5)),col=Math.min(3,Math.floor(fo*4));
+  return code.slice(0,8)+'+'+code.slice(8)+OLC[row*4+col];
+}
+function olcPrefix(lat,lng,n){
+  lat+=90;lng+=180;let out='',size=20;
+  for(let i=0;i<n;i+=2){
+    const a=Math.min(19,Math.floor(lat/size)),b=Math.min(19,Math.floor(lng/size));
+    out+=OLC[a]+OLC[b];lat-=a*size;lng-=b*size;size/=20;
+  }
+  return out;
+}
+function olcToLatLng(code,refLat,refLng){
+  code=code.toUpperCase();
+  if(!olcValid(code))return null;
+  const plus=code.indexOf('+');
+  if(plus===8)return olcDecodeFull(code);
+  if(plus>8||plus%2)return null;
+  const pad=8-plus,res=Math.pow(20,2-pad/2),half=res/2;
+  let {lat,lng}=olcDecodeFull(olcPrefix(refLat,refLng,pad)+code);
+  if(refLat+half<lat&&lat-res>=-90)lat-=res;else if(refLat-half>lat&&lat+res<=90)lat+=res;
+  if(refLng+half<lng)lng-=res;else if(refLng-half>lng)lng+=res;
+  return {lat,lng};
+}
+const UA=6378137,UF=1/298.257223563,UK0=0.9996,UE2=UF*(2-UF),UEP2=UE2/(1-UE2);
+function utmZone(lng){return Math.floor((lng+180)/6)+1;}
+function ll2utm(lat,lng,zone){
+  const lon0=((zone-1)*6-180+3)*Math.PI/180,phi=lat*Math.PI/180,lam=lng*Math.PI/180;
+  const e2=UE2,N=UA/Math.sqrt(1-e2*Math.sin(phi)**2),T=Math.tan(phi)**2,C=UEP2*Math.cos(phi)**2,A=Math.cos(phi)*(lam-lon0);
+  const M=UA*((1-e2/4-3*e2*e2/64-5*e2**3/256)*phi-(3*e2/8+3*e2*e2/32+45*e2**3/1024)*Math.sin(2*phi)+(15*e2*e2/256+45*e2**3/1024)*Math.sin(4*phi)-(35*e2**3/3072)*Math.sin(6*phi));
+  const x=UK0*N*(A+(1-T+C)*A**3/6+(5-18*T+T*T+72*C-58*UEP2)*A**5/120)+500000;
+  let y=UK0*(M+N*Math.tan(phi)*(A*A/2+(5-T+9*C+4*C*C)*A**4/24+(61-58*T+T*T+600*C-330*UEP2)*A**6/720));
+  if(lat<0)y+=10000000;
+  return {e:x,n:y};
+}
+function utm2ll(e,n,zone,south){
+  const lon0=((zone-1)*6-180+3),e2=UE2,x=e-500000;let y=n;if(south)y-=10000000;
+  const M=y/UK0,mu=M/(UA*(1-e2/4-3*e2*e2/64-5*e2**3/256));
+  const e1=(1-Math.sqrt(1-e2))/(1+Math.sqrt(1-e2));
+  const p1=mu+(3*e1/2-27*e1**3/32)*Math.sin(2*mu)+(21*e1*e1/16-55*e1**4/32)*Math.sin(4*mu)+(151*e1**3/96)*Math.sin(6*mu)+(1097*e1**4/512)*Math.sin(8*mu);
+  const N1=UA/Math.sqrt(1-e2*Math.sin(p1)**2),T1=Math.tan(p1)**2,C1=UEP2*Math.cos(p1)**2,R1=UA*(1-e2)/Math.pow(1-e2*Math.sin(p1)**2,1.5),D=x/(N1*UK0);
+  const lat=p1-(N1*Math.tan(p1)/R1)*(D*D/2-(5+3*T1+10*C1-4*C1*C1-9*UEP2)*D**4/24+(61+90*T1+298*C1+45*T1*T1-252*UEP2-3*C1*C1)*D**6/720);
+  const lon=(D-(1+2*T1+C1)*D**3/6+(5-2*C1+28*T1-3*C1*C1+8*UEP2+24*T1*T1)*D**5/120)/Math.cos(p1);
+  return {lat:lat*180/Math.PI,lng:lon0+lon*180/Math.PI};
+}
+function dms(v,pos,neg,dec){
+  if(dec===undefined)dec=1;
+  const h=v>=0?pos:neg;v=Math.abs(v);
+  const f=Math.pow(10,dec),tot=Math.round(v*3600*f)/f;
+  const d=Math.floor(tot/3600),m=Math.floor((tot-d*3600)/60),s=tot-d*3600-m*60;
+  return d+'°'+String(m).padStart(2,'0')+"'"+s.toFixed(dec).padStart(dec?3+dec:2,'0')+'"'+h;
+}
+function polyStats(u){
+  let a=0,p=0;
+  for(let i=0;i<u.length;i++){const j=(i+1)%u.length;a+=u[i].e*u[j].n-u[j].e*u[i].n;p+=Math.hypot(u[j].e-u[i].e,u[j].n-u[i].n);}
+  return {area:Math.abs(a)/2,per:p};
+}
+function fmtNum(n){return Number.isInteger(n)?String(n):n.toFixed(2).replace(/\.?0+$/,'').replace('.',',');}
+function parseDim(t){
+  const m=String(t||'').toLowerCase().replace(/,/g,'.').match(/(\d+(?:\.\d+)?)\s*m?\s*(?:x|×|\*|por)\s*(\d+(?:\.\d+)?)/);
+  if(!m)return null;
+  const a=parseFloat(m[1]),b=parseFloat(m[2]);
+  return (a>0&&b>0)?{a,b}:null;
+}
+function parseCoord(txt,ref){
+  const t=String(txt||'').trim().replace(/[′’‘´`]/g,"'").replace(/[″”“]/g,'"').replace(/''/g,'"').replace(/−/g,'-');
+  if(!t)return null;
+  const f=x=>x?parseFloat(x.replace(',','.')):0;
+  const re=/(\d+(?:[.,]\d+)?)\s*°\s*(?:(\d+(?:[.,]\d+)?)\s*')?\s*(?:(\d+(?:[.,]\d+)?)\s*")?\s*([NSEWnsew])/g;
+  const ms=[...t.matchAll(re)];
+  if(ms.length>=2){
+    let lat=null,lng=null;
+    for(const m of ms.slice(0,2)){
+      let v=f(m[1])+f(m[2])/60+f(m[3])/3600;const h=m[4].toUpperCase();
+      if(h==='S'||h==='W')v=-v;
+      if(h==='N'||h==='S')lat=v;else lng=v;
+    }
+    if(lat!==null&&lng!==null)return {lat,lng,kind:'graus'};
+  }
+  const pc=t.toUpperCase().match(/[23456789CFGHJMPQRVWX]{2,8}\+[23456789CFGHJMPQRVWX]{2,}/);
+  if(pc){const r=olcToLatLng(pc[0],ref.lat,ref.lng);if(r)return {lat:r.lat,lng:r.lng,kind:'Plus Code'};}
+  const nums=(t.match(/-?\d+(?:[.,]\d+)?/g)||[]).map(x=>parseFloat(x.replace(',','.')));
+  if(nums.length===2&&Math.abs(nums[0])<=90&&Math.abs(nums[1])<=180)return {lat:nums[0],lng:nums[1],kind:'decimais'};
+  return null;
+}
+//#pure-end
+
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+const TILE={
+  osm:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+  topo:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+  sat:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+};
+const MODELS={
+  terreno:{ownerLabel:'Proprietário',vertices:true,area:true,fins:'Serviços administrativos legais',espec:'Topografia',circle:250},
+  empresa:{ownerLabel:'Empresa',vertices:false,area:false,fins:'Licenciamento comercial',espec:'Topografia',circle:150},
+  residencia:{ownerLabel:'Requerente',vertices:false,area:false,fins:'Serviços administrativos legais',espec:'Topografia',circle:100}
+};
+const FIELDS=['owner','idtipo','nif','regtipo','regnum','bairro','municipio','provincia','ref','endereco','folha','dim','atividade','escala','data','espec','fins','tecnico','label','basemap','rot','zA','zB','zC','zD','zE'];
+const S={layout:'alta',model:'terreno',pt:{lat:-8.875028,lng:13.338944},verts:[],mode:'ponto',inset:true,dateBlank:false,dimRect:false,sig:null};
+const curSheet=()=>S.layout==='alta'?$('#sheet2'):$('#sheet');
+
+function pinIcon(k){
+  const w=Math.round(26*k),h=Math.round(36*k);
+  return L.divIcon({className:'pin',iconSize:[w,h],iconAnchor:[w/2,h],
+    html:'<svg viewBox="0 0 26 36" width="'+w+'" height="'+h+'"><path d="M13 0C5.8 0 0 5.6 0 12.6 0 22 13 36 13 36s13-14 13-23.4C26 5.6 20.2 0 13 0z" fill="#e8402f" stroke="#8a2118" stroke-width="1.2"/><circle cx="13" cy="12.5" r="4.6" fill="#fff"/></svg>'});
+}
+
+/* ---------- mapa do editor ---------- */
+const ed=L.map('edmap',{maxZoom:20}).setView([S.pt.lat,S.pt.lng],17);
+const edSat=L.tileLayer(TILE.sat,{maxNativeZoom:18,maxZoom:20,attribution:'Imagem © Esri'}).addTo(ed);
+const edOsm=L.tileLayer(TILE.osm,{maxNativeZoom:19,maxZoom:20,attribution:'© OpenStreetMap'});
+L.control.layers({'Satélite':edSat,'Mapa':edOsm},null).addTo(ed);
+const edMk=L.marker([S.pt.lat,S.pt.lng],{icon:pinIcon(1),draggable:true}).addTo(ed);
+const vGroup=L.layerGroup().addTo(ed);
+let edPoly=null;
+edMk.on('dragend',()=>setPoint(edMk.getLatLng(),false));
+ed.on('click',e=>{if(S.mode==='ponto')setPoint(e.latlng,false);else addVertex(e.latlng);});
+
+/* ---------- mapas das folhas ---------- */
+const mopts={zoomSnap:0,zoomControl:false,attributionControl:false,dragging:false,scrollWheelZoom:false,doubleClickZoom:false,boxZoom:false,keyboard:false,touchZoom:false,tap:false};
+const mA=L.map('mapA',mopts),mB=L.map('mapB',mopts),mC=L.map('mapC',mopts),mD=L.map('mapD',mopts),mE=L.map('mapE',mopts);
+const baseTopo=L.tileLayer(TILE.topo,{subdomains:'abc',maxNativeZoom:17,maxZoom:19}).addTo(mA);
+const baseOsmA=L.tileLayer(TILE.osm,{maxNativeZoom:19,maxZoom:20});
+[mB,mC,mD].forEach(m=>L.tileLayer(TILE.sat,{maxNativeZoom:18,maxZoom:20,detectRetina:true}).addTo(m));
+L.tileLayer(TILE.osm,{maxNativeZoom:19,maxZoom:20,detectRetina:true}).addTo(mE);
+L.control.scale({imperial:false,position:'bottomright',maxWidth:110}).addTo(mB);
+L.control.scale({imperial:false,position:'bottomright',maxWidth:150}).addTo(mD);
+const gA=L.layerGroup().addTo(mA),gAg=L.layerGroup().addTo(mA),gB=L.layerGroup().addTo(mB),gBg=L.layerGroup().addTo(mB),gC=L.layerGroup().addTo(mC),gD=L.layerGroup().addTo(mD),gE=L.layerGroup().addTo(mE);
+
+/* ---------- lógica ---------- */
+function vertsUTM(){const z=utmZone(S.pt.lng);return S.verts.map(v=>ll2utm(v.lat,v.lng,z));}
+function hemi(){return S.pt.lat<0;}
+function setPoint(ll,pan){
+  S.pt={lat:ll.lat,lng:ll.lng};
+  edMk.setLatLng([S.pt.lat,S.pt.lng]);
+  if(pan)ed.setView([S.pt.lat,S.pt.lng],Math.max(ed.getZoom(),17));
+  renderCoordInfo();renderVList();renderText();queue();
+}
+function addVertex(ll){S.verts.push({lat:ll.lat,lng:ll.lng});afterVerts(true);}
+function afterVerts(redraw){
+  if(redraw)drawEdVerts();
+  renderVList();renderText();queue();
+}
+function drawEdVerts(){
+  vGroup.clearLayers();
+  if(edPoly){ed.removeLayer(edPoly);edPoly=null;}
+  S.verts.forEach((v,i)=>{
+    const mk=L.marker([v.lat,v.lng],{draggable:true,icon:L.divIcon({className:'vtx',html:'<b>V'+(i+1)+'</b>',iconSize:[28,20],iconAnchor:[14,10]})});
+    mk.on('dragend',()=>{const p=mk.getLatLng();S.verts[i]={lat:p.lat,lng:p.lng};afterVerts(false);if(edPoly)edPoly.setLatLngs(S.verts.map(q=>[q.lat,q.lng]));});
+    vGroup.addLayer(mk);
+  });
+  if(S.verts.length>=2)edPoly=L.polygon(S.verts.map(v=>[v.lat,v.lng]),{color:'#e8402f',weight:2,fillOpacity:.15,interactive:false}).addTo(ed);
+}
+function renderCoordInfo(){
+  const z=utmZone(S.pt.lng),u=ll2utm(S.pt.lat,S.pt.lng,z);
+  $('#coordInfo').innerHTML='<b>'+dms(S.pt.lat,'N','S')+' '+dms(S.pt.lng,'E','W')+'</b><br>Decimais: '+S.pt.lat.toFixed(6)+', '+S.pt.lng.toFixed(6)+'<br>Plus Code: '+olcEncode(S.pt.lat,S.pt.lng).slice(4)+'<br>UTM fuso '+z+(hemi()?'S':'N')+': Este '+u.e.toFixed(1)+', Norte '+u.n.toFixed(1);
+}
+function renderVList(){
+  const u=vertsUTM();
+  $('#vlist').innerHTML=S.verts.length
+    ?S.verts.map((v,i)=>'<li><b>V'+(i+1)+'</b><span>Este '+u[i].e.toFixed(1)+'<br>Norte '+u[i].n.toFixed(1)+'</span><button class="x" type="button" data-i="'+i+'" aria-label="Remover V'+(i+1)+'">×</button></li>').join('')
+    :'<li class="empty">Sem vértices. Active “Traçar terreno” e toque nos cantos do terreno, por ordem.</li>';
+  const st=S.verts.length>=3?polyStats(u):null;
+  $('#statsLine').textContent=st?'Área '+Math.round(st.area)+' m², perímetro '+st.per.toFixed(1).replace('.',',')+' m (calculados sobre as coordenadas UTM).':'';
+}
+function zoomForScale(den){return Math.log2(156543.03392*Math.cos(S.pt.lat*Math.PI/180)/(den*0.00026458333));}
+function scaleFromZoom(z){return Math.round(156543.03392*Math.cos(S.pt.lat*Math.PI/180)/Math.pow(2,z)/0.00026458333/50)*50;}
+function a4Zooms(){
+  const sc=$('#f-escala').value;
+  if(sc==='manual')return {A:+$('#f-zA').value||15,B:+$('#f-zB').value||17,C:+$('#f-zC').value||18};
+  const zB=zoomForScale(+sc);
+  return {A:zB-2,B:zB,C:zB+1};
+}
+function applyBasemap(){
+  const topo=$('#f-basemap').value==='topo';
+  if(topo){mA.removeLayer(baseOsmA);baseTopo.addTo(mA);}else{mA.removeLayer(baseTopo);baseOsmA.addTo(mA);}
+}
+function applyTools(){
+  $('#toolsAlta').hidden=S.layout!=='alta';
+  $('#toolsA4').hidden=S.layout==='alta'||$('#f-escala').value!=='manual';
+}
+function fmtDate(v,sep){if(!v)return '';const p=v.split('-');return p.length===3?p[2]+sep+p[1]+sep+p[0]:v;}
+function measures(){
+  /* área e perímetro: vértices se existirem, senão dimensão (ex.: 20 por 15) */
+  if(MODELS[S.model].vertices&&S.verts.length>=3){const s=polyStats(vertsUTM());return {area:s.area,per:s.per,src:'vert'};}
+  const d=parseDim($('#f-dim').value);
+  if(d)return {area:d.a*d.b,per:2*(d.a+d.b),src:'dim',d};
+  return null;
+}
+function locationText(){
+  const v=id=>$('#f-'+id).value.trim();
+  if(v('endereco'))return v('endereco');
+  const p=[];
+  if(v('bairro'))p.push('Bairro '+v('bairro'));
+  if(v('municipio'))p.push('Município: '+v('municipio'));
+  if(v('provincia'))p.push('Província: '+v('provincia'));
+  return p.join(', ')+(v('ref')?(p.length?'\n':'')+'Referência: '+v('ref'):'');
+}
+
+function renderText(){
+  const m=MODELS[S.model],v=id=>$('#f-'+id).value.trim();
+  $('#lab-owner').textContent=m.ownerLabel;
+  const idl=(v('idtipo')||'NIF'),reg=v('regnum')?((v('regtipo')||'Registo')+': '+v('regnum')):'';
+  const dateTxt=(S.dateBlank||!$('#f-data').value)?'':null;
+  const meas=measures(),dim=parseDim(v('dim'));
+
+  /* --- A4 --- */
+  $('#s-ownerLab').textContent=m.ownerLabel+':';
+  const so=$('#s-owner');so.textContent=v('owner')||'—';
+  if(v('nif')){const d=document.createElement('div');d.className='nif';d.textContent=idl+': '+v('nif');so.appendChild(d);}
+  if(v('folha')){$('#s-folhaLab').textContent='Folha:';$('#s-folha').textContent=v('folha');}else{const uu=ll2utm(S.pt.lat,S.pt.lng,utmZone(S.pt.lng));$('#s-folhaLab').textContent='Coordenadas UTM:';$('#s-folha').textContent='E '+uu.e.toFixed(1)+'\nN '+uu.n.toFixed(1);}
+  const loc=[];
+  if(v('bairro'))loc.push('Bairro '+v('bairro'));
+  if(v('municipio'))loc.push('Município de '+v('municipio'));
+  if(v('provincia'))loc.push(v('provincia'));
+  $('#s-loc').innerHTML=loc.map(esc).join('<br>')+(v('ref')?'<div class="refl">Ref.: '+esc(v('ref'))+'</div>':'');
+  {const sc=$('#f-escala').value;$('#s-escala').textContent=sc==='manual'?'≈ 1 : '+scaleFromZoom(a4Zooms().B):'1 : '+sc;}
+  $('#s-data').textContent=dateTxt===''?'__/__/____':fmtDate($('#f-data').value,'.');
+  $('#s-espec').textContent=v('espec')||'—';
+  $('#s-fins').textContent='Fins: '+(v('fins')||'—');
+  $('#s-reg').textContent=reg;
+  $('#s-tecnome').textContent=v('tecnico');
+  const sig=$('#s-sig');
+  if(S.sig){sig.src=S.sig;sig.hidden=false;}else{sig.hidden=true;sig.removeAttribute('src');}
+  const cell=$('#s-area');
+  if(m.area||meas){
+    cell.innerHTML='<div class="lab">Área:</div><div class="val">'+(meas?Math.round(meas.area)+' m²':'—')+'</div><div class="lab">Perímetro:</div><div class="val">'+(meas?(meas.src==='dim'?fmtNum(Math.round(meas.per*100)/100):meas.per.toFixed(1).replace('.',','))+' m':'—')+'</div>';
+  }else{
+    cell.innerHTML='<div class="lab">Coordenadas:</div><div class="val sm">'+dms(S.pt.lat,'N','S')+'<br>'+dms(S.pt.lng,'E','W')+'</div>';
+  }
+  const z=utmZone(S.pt.lng);
+  $('#s-foot').textContent='Coordenadas UTM, WGS 84, fuso '+z+(hemi()?'S':'N')+(($('#f-basemap').value==='topo')?'. Mapa topográfico © OpenTopoMap e © OpenStreetMap.':'. Mapa © OpenStreetMap.')+' Imagem de satélite © Esri.';
+  renderVTable();renderShape(dim);
+
+  /* --- folha alta --- */
+  const full=olcEncode(S.pt.lat,S.pt.lng),short=full.slice(4),place=v('bairro')||v('municipio');
+  $('#a-coord').innerHTML='<span class="ht">Coordenadas geográficas</span>'+esc('Latitude: '+dms(S.pt.lat,'N','S')+'\nLongitude: '+dms(S.pt.lng,'E','W')+'\nPlus Code: '+short+(place?' '+place:'')+', Angola');
+  const ad=$('#a-dim');
+  if(dim){ad.hidden=false;ad.innerHTML='<span class="ht">Dimensão do terreno</span>'+esc(fmtNum(dim.a)+' × '+fmtNum(dim.b)+' m\nÁrea: '+fmtNum(Math.round(dim.a*dim.b*100)/100)+' m²');}else ad.hidden=true;
+  const aa=$('#a-ativ');
+  if(v('atividade')){aa.hidden=false;aa.innerHTML='<span class="ht">Actividade licenciada</span>'+esc(v('atividade'));}else aa.hidden=true;
+  $('#a-fins').innerHTML='<span class="ht">Fins:</span><span class="red">'+esc(v('fins')||'—')+'</span>'+(reg?'\n'+esc(reg):'');
+  $('#a-req').innerHTML='<span class="ht">Requerente</span>'+esc(v('owner')||'—')+(v('nif')?'\n'+esc(idl+': '+v('nif')):'');
+  $('#a-loc').innerHTML='<span class="ht">Localização</span>'+esc(locationText()||'—');
+  $('#a-data').textContent=dateTxt===''?'DATA____/_____/______':'DATA '+fmtDate($('#f-data').value,'/');
+  const as=$('#a-sig');
+  if(S.sig){as.src=S.sig;as.hidden=false;}else{as.hidden=true;as.removeAttribute('src');}
+  $('#aLabel').textContent=v('label');
+  $('#aInset').hidden=!S.inset;
+}
+function renderVTable(){
+  const t=$('#vtable'),m=MODELS[S.model];
+  if(!m.vertices||!S.verts.length){t.style.display='none';t.innerHTML='';return;}
+  const u=vertsUTM();
+  t.innerHTML='<tr><th>Vértices</th><th>Este</th><th>Norte</th><th>Latitude</th><th>Longitude</th></tr>'+
+    u.map((p,i)=>'<tr><td>V'+(i+1)+'</td><td>'+p.e.toFixed(2)+'</td><td>'+p.n.toFixed(2)+'</td><td>'+dms(S.verts[i].lat,'N','S',2)+'</td><td>'+dms(S.verts[i].lng,'E','W',2)+'</td></tr>').join('');
+  t.style.display='';
+}
+function renderShape(dim){
+  const m=MODELS[S.model];let body='';
+  if(m.vertices&&S.verts.length>=3){
+    const u=vertsUTM(),es=u.map(p=>p.e),ns=u.map(p=>p.n);
+    const minE=Math.min(...es),maxE=Math.max(...es),minN=Math.min(...ns),maxN=Math.max(...ns);
+    const span=Math.max(maxE-minE,maxN-minN)||1,k=64/span;
+    const ox=50-((maxE-minE)*k)/2,oy=54+((maxN-minN)*k)/2;
+    const pts=u.map(p=>(ox+(p.e-minE)*k).toFixed(1)+','+(oy-(p.n-minN)*k).toFixed(1)).join(' ');
+    body='<polygon points="'+pts+'" fill="#e8362e" stroke="#7d1a14" stroke-width="1"/>';
+  }else if(dim&&(+$('#f-rot').value||0)){
+    const th=(+$('#f-rot').value)*Math.PI/180,co=Math.cos(th),si=Math.sin(th);
+    const cs=[[-1,-1],[1,-1],[1,1],[-1,1]].map(s=>{const x=s[0]*dim.a/2,y=s[1]*dim.b/2;return [x*co+y*si,-x*si+y*co];});
+    const ext=Math.max(...cs.map(c=>Math.abs(c[0])),...cs.map(c=>Math.abs(c[1])))*2||1,k=58/ext;
+    body='<polygon points="'+cs.map(c=>(50+c[0]*k).toFixed(1)+','+(54-c[1]*k).toFixed(1)).join(' ')+'" fill="#e8362e" stroke="#7d1a14" stroke-width="1"/>'+
+      '<text x="50" y="97" text-anchor="middle" font-size="8" font-weight="700" font-family="Arial">'+fmtNum(dim.a)+' × '+fmtNum(dim.b)+' m</text>';
+  }else if(dim){
+    const k=58/Math.max(dim.a,dim.b),w=dim.a*k,h=dim.b*k,x0=50-w/2,y0=58-h/2;
+    body='<rect x="'+x0.toFixed(1)+'" y="'+y0.toFixed(1)+'" width="'+w.toFixed(1)+'" height="'+h.toFixed(1)+'" fill="#e8362e" stroke="#7d1a14" stroke-width="1"/>'+
+      '<text x="50" y="'+(y0-3).toFixed(1)+'" text-anchor="middle" font-size="7.5" font-weight="700" font-family="Arial">'+fmtNum(dim.a)+' m</text>'+
+      '<text x="'+(x0-3).toFixed(1)+'" y="58" text-anchor="middle" font-size="7.5" font-weight="700" font-family="Arial" transform="rotate(-90 '+(x0-3).toFixed(1)+' 58)">'+fmtNum(dim.b)+' m</text>';
+  }else{
+    body='<circle cx="50" cy="56" r="4" fill="#e8362e" stroke="#7d1a14" stroke-width="1"/>';
+  }
+  body+='<path d="M90 26 L90 6 M90 6 L86 14 M90 6 L94 14" stroke="#000" stroke-width="1.4" fill="none"/><text x="90" y="36" text-anchor="middle" font-size="10" font-weight="700" font-family="Arial">N</text>';
+  $('#shape').innerHTML=body;
+}
+
+/* grelha UTM com legendas nas margens */
+function drawGrid(map,group,dark){
+  group.clearLayers();
+  const b=map.getBounds(),z=utmZone(S.pt.lng),south=hemi();
+  const cs=[[b.getSouth(),b.getWest()],[b.getSouth(),b.getEast()],[b.getNorth(),b.getWest()],[b.getNorth(),b.getEast()]].map(c=>ll2utm(c[0],c[1],z));
+  const eMin=Math.min(...cs.map(c=>c.e)),eMax=Math.max(...cs.map(c=>c.e)),nMin=Math.min(...cs.map(c=>c.n)),nMax=Math.max(...cs.map(c=>c.n));
+  const w=eMax-eMin;let step=100;
+  for(const s of [100,200,250,500,1000,2000,5000,10000])if(w/s>=3)step=s;
+  const style={color:dark?'#222':'#fff',weight:.8,opacity:dark?.6:.75,interactive:false};
+  const cls='gl'+(dark?' dark':'');
+  const mx=(b.getEast()-b.getWest())*0.04,my=(b.getNorth()-b.getSouth())*0.04;
+  for(let e=Math.ceil(eMin/step)*step;e<=eMax;e+=step){
+    const a=utm2ll(e,nMin-step,z,south),c=utm2ll(e,nMax+step,z,south);
+    group.addLayer(L.polyline([[a.lat,a.lng],[c.lat,c.lng]],style));
+    const t=(b.getNorth()-a.lat)/(c.lat-a.lat),lng=a.lng+(c.lng-a.lng)*t;
+    if(lng>b.getWest()+mx&&lng<b.getEast()-mx)group.addLayer(L.marker([b.getNorth(),lng],{interactive:false,icon:L.divIcon({className:cls,html:'<span>'+Math.round(e)+'</span>',iconSize:[60,12],iconAnchor:[30,-1]})}));
+  }
+  for(let n=Math.ceil(nMin/step)*step;n<=nMax;n+=step){
+    const a=utm2ll(eMin-step,n,z,south),c=utm2ll(eMax+step,n,z,south);
+    group.addLayer(L.polyline([[a.lat,a.lng],[c.lat,c.lng]],style));
+    const t=(b.getWest()-a.lng)/(c.lng-a.lng),lat=a.lat+(c.lat-a.lat)*t;
+    if(lat>b.getSouth()+my&&lat<b.getNorth()-my)group.addLayer(L.marker([lat,b.getWest()],{interactive:false,icon:L.divIcon({className:cls+' v',html:'<span>'+Math.round(n)+'</span>',iconSize:[12,60],iconAnchor:[-2,30]})}));
+  }
+}
+
+function rectPts(){
+  const d=parseDim($('#f-dim').value);if(!d)return null;
+  const z=utmZone(S.pt.lng),c=ll2utm(S.pt.lat,S.pt.lng,z),th=(+$('#f-rot').value||0)*Math.PI/180,co=Math.cos(th),si=Math.sin(th);
+  return [[-1,-1],[1,-1],[1,1],[-1,1]].map(s=>{
+    const x=s[0]*d.a/2,y=s[1]*d.b/2,p=utm2ll(c.e+x*co+y*si,c.n-x*si+y*co,z,hemi());
+    return [p.lat,p.lng];
+  });
+}
+function polyPts(force){
+  if(MODELS[S.model].vertices&&S.verts.length>=3)return S.verts.map(v=>[v.lat,v.lng]);
+  if(force||S.dimRect)return rectPts();
+  return null;
+}
+const polyStyle={color:'#e8402f',weight:2,fillColor:'#e8402f',fillOpacity:.25,interactive:false};
+
+function renderA4(){
+  if(!$('#sheet').offsetParent)return;
+  const m=MODELS[S.model],ll=[S.pt.lat,S.pt.lng];
+  const zz=a4Zooms(),zA=zz.A,zB=zz.B,zC=zz.C;
+  [mA,mB,mC].forEach(x=>x.invalidateSize(false));
+  mA.setView(ll,zA,{animate:false});mB.setView(ll,zB,{animate:false});mC.setView(ll,zC,{animate:false});
+  [gA,gB,gC].forEach(g=>g.clearLayers());
+  const poly=polyPts();
+  gA.addLayer(L.circleMarker(ll,{radius:46,color:'#d93025',weight:1.4,fill:false,interactive:false}));
+  gA.addLayer(L.marker(ll,{icon:pinIcon(.8),interactive:false}));
+  if(poly){gB.addLayer(L.polygon(poly,polyStyle));gC.addLayer(L.polygon(poly,polyStyle));}
+  gB.addLayer(L.marker(ll,{icon:pinIcon(.9),interactive:false}));
+  gC.addLayer(L.marker(ll,{icon:pinIcon(.7),interactive:false}));
+  drawGrid(mA,gAg,true);drawGrid(mB,gBg,false);
+}
+function renderAlta(){
+  const sh=$('#sheet2');if(!sh.offsetParent)return;
+  const ll=[S.pt.lat,S.pt.lng],zD=+$('#f-zD').value||19,zE=+$('#f-zE').value||19;
+  [mD,mE].forEach(x=>x.invalidateSize(false));
+  const box=$('#aMap'),W=box.clientWidth,H=box.clientHeight;
+  mD.setView(ll,zD,{animate:false});
+  if(S.inset)mD.panBy([0,-Math.round(H*0.2)],{animate:false});
+  mE.setView(ll,zE,{animate:false});
+  gD.clearLayers();gE.clearLayers();
+  const poly=polyPts();
+  if(poly)gD.addLayer(L.polygon(poly,polyStyle));
+  gD.addLayer(L.marker(ll,{icon:pinIcon(1.5),interactive:false}));
+  gE.addLayer(L.marker(ll,{icon:pinIcon(.65),interactive:false}));
+  const p=mD.latLngToContainerPoint(ll),cx=p.x,cy=p.y-22,r2=95;
+  let svg='<circle cx="'+cx+'" cy="'+cy+'" r="'+r2+'" fill="none" stroke="#000" stroke-width="2.4"/>';
+  if(S.inset){
+    const c1x=42+150,c1y=15+113,r1=62,dx=cx-c1x,dy=cy-c1y,d=Math.hypot(dx,dy)||1,ux=dx/d,uy=dy/d;
+    svg+='<circle cx="'+c1x+'" cy="'+c1y+'" r="'+r1+'" fill="none" stroke="#000" stroke-width="2.4"/>'+
+         '<line x1="'+(c1x+ux*r1).toFixed(1)+'" y1="'+(c1y+uy*r1).toFixed(1)+'" x2="'+(cx-ux*r2).toFixed(1)+'" y2="'+(cy-uy*r2).toFixed(1)+'" stroke="#000" stroke-width="2.4"/>';
+  }
+  const ov=$('#aOverlay');ov.setAttribute('viewBox','0 0 '+W+' '+H);ov.innerHTML=svg;
+  const lb=$('#aLabel');lb.style.left=cx+'px';lb.style.top=(cy-52)+'px';
+}
+function renderSheet(){if(S.layout==='alta')renderAlta();else renderA4();}
+function renderAll(){renderText();renderSheet();}
+let tmr;function queue(){clearTimeout(tmr);tmr=setTimeout(renderSheet,150);}
+
+let realSize=false;
+function fitSheet(){
+  const wrap=$('#sheetWrap'),sh=curSheet(),avail=wrap.clientWidth;
+  if(!avail)return;
+  if(realSize){sh.style.transform='none';wrap.style.height='auto';return;}
+  const k=Math.min(1,avail/sh.offsetWidth);
+  sh.style.transform=k<1?'scale('+k+')':'none';
+  wrap.style.height=Math.ceil(sh.offsetHeight*k)+'px';
+}
+function layout(){ed.invalidateSize();fitSheet();renderSheet();}
+
+/* ---------- interface ---------- */
+function applyLayout(){
+  const alta=S.layout==='alta';
+  $('#sheet').classList.toggle('off',alta);
+  $('#sheet2').classList.toggle('off',!alta);
+  applyTools();
+  $('#pageStyle').textContent=alta?'@page{size:190.5mm 343.92mm;margin:0}':'@page{size:A4;margin:0}';
+  $('#sheet').style.transform='';$('#sheet2').style.transform='';
+  setTimeout(()=>{fitSheet();renderSheet();},30);
+}
+function showTab(n){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id==='p-'+n));
+  document.querySelectorAll('.tabs button').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===n)));
+  setTimeout(()=>{ed.invalidateSize();fitSheet();renderSheet();window.scrollTo(0,0);},60);
+}
+document.querySelectorAll('.tabs button').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
+
+function applyModelUI(){
+  const m=MODELS[S.model];
+  $('#lab-owner').textContent=m.ownerLabel;
+  $('#vertSection').hidden=!m.vertices;
+  $('#segWrap').hidden=!m.vertices;
+  if(!m.vertices)setMode('ponto');
+}
+function setMode(md){
+  S.mode=md;
+  $('#m-ponto').classList.toggle('on',md==='ponto');
+  $('#m-terreno').classList.toggle('on',md==='terreno');
+}
+$('#m-ponto').onclick=()=>setMode('ponto');
+$('#m-terreno').onclick=()=>setMode('terreno');
+
+$('#f-layout').addEventListener('change',e=>{S.layout=e.target.value;applyLayout();});
+$('#f-model').addEventListener('change',e=>{
+  const prev=MODELS[S.model];S.model=e.target.value;const m=MODELS[S.model];
+  if($('#f-fins').value===prev.fins)$('#f-fins').value=m.fins;
+  if($('#f-espec').value===prev.espec)$('#f-espec').value=m.espec;
+  applyModelUI();renderText();queue();
+});
+FIELDS.forEach(f=>{
+  const h=()=>{if(f==='basemap')applyBasemap();if(f==='escala')applyTools();renderText();queue();};
+  const el=$('#f-'+f);el.addEventListener('input',h);el.addEventListener('change',h);
+});
+$('#f-dimrect').addEventListener('change',e=>{S.dimRect=e.target.checked;renderText();renderSheet();});
+$('#f-inset').addEventListener('change',e=>{S.inset=e.target.checked;renderText();renderSheet();});
+$('#f-datablank').addEventListener('change',e=>{S.dateBlank=e.target.checked;renderText();});
+$('#f-sigfile').addEventListener('change',e=>{
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();r.onload=()=>{S.sig=r.result;renderText();};r.readAsDataURL(f);
+});
+$('#btnSigClear').onclick=()=>{S.sig=null;$('#f-sigfile').value='';renderText();};
+
+function go(){
+  const msg=$('#qMsg'),r=parseCoord($('#q').value,S.pt);
+  if(!r){msg.className='msg err';msg.textContent='Não consegui ler essa localização. Confirme o Plus Code ou as coordenadas.';return;}
+  msg.className='msg';msg.textContent='Local encontrado ('+r.kind+').';
+  setPoint({lat:r.lat,lng:r.lng},true);
+}
+$('#qGo').onclick=go;
+$('#q').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();go();}});
+
+$('#vlist').addEventListener('click',e=>{
+  const b=e.target.closest('.x');if(!b)return;
+  S.verts.splice(+b.dataset.i,1);afterVerts(true);
+});
+$('#vUndo').onclick=()=>{S.verts.pop();afterVerts(true);};
+$('#vClear').onclick=()=>{S.verts=[];afterVerts(true);};
+$('#vImp').onclick=()=>{
+  const msg=$('#vMsg'),z=utmZone(S.pt.lng),out=[],bad=[];
+  $('#vimp').value.split(/\n+/).map(s=>s.trim()).filter(Boolean).forEach((ln,i)=>{
+    const t=ln.replace(/^\s*V\s*\d+\s*[:.\-–]?\s*/i,'').replace(/−/g,'-');
+    const nums=(t.match(/-?\d+(?:[.,]\d+)?/g)||[]).map(x=>parseFloat(x.replace(',','.')));
+    let p=null;
+    if(nums.length===2&&Math.abs(nums[0])>=1000&&Math.abs(nums[1])>=1000&&!/[°]/.test(t)){
+      const e=Math.min(nums[0],nums[1]),n=Math.max(nums[0],nums[1]);
+      if(e>=100000&&e<=900000)p=utm2ll(e,n,z,hemi());
+    }else p=parseCoord(t,S.pt);
+    if(p)out.push({lat:p.lat,lng:p.lng});else bad.push(i+1);
+  });
+  if(!out.length){msg.className='msg err';msg.textContent='Nenhum vértice válido encontrado.';return;}
+  S.verts=out;afterVerts(true);
+  ed.fitBounds(L.latLngBounds(out.map(v=>[v.lat,v.lng])).pad(.4),{maxZoom:19});
+  msg.className='msg'+(bad.length?' err':'');
+  msg.textContent=out.length+' vértices importados'+(bad.length?'. Linhas ignoradas: '+bad.join(', ')+'.':'.');
+};
+$('#btnFit').onclick=()=>{
+  const pts=polyPts(true),msg=$('#expMsg');
+  if(!pts){msg.className='msg err';msg.textContent='Trace o terreno ou escreva a dimensão (ex.: 20 por 15) para ajustar.';return;}
+  msg.className='msg';msg.textContent='';
+  const b=L.latLngBounds(pts);
+  if(S.layout==='alta'){
+    mD.invalidateSize(false);
+    const z=Math.max(14,Math.min(19.5,mD.getBoundsZoom(b,false,L.point(170,190))));
+    $('#f-zD').value=Math.round(z*10)/10;$('#f-zE').value=Math.min(19,Math.round((z+1)*10)/10);
+  }else{
+    const z=utmZone(S.pt.lng),u=pts.map(p=>ll2utm(p[0],p[1],z)),es=u.map(q=>q.e),ns=u.map(q=>q.n);
+    const ext=Math.max(Math.max(...es)-Math.min(...es),Math.max(...ns)-Math.min(...ns));
+    let den=10000;for(const s of [500,1000,2000,2500,5000,10000]){if(ext<=0.45*0.1019*s){den=s;break;}}
+    $('#f-escala').value=String(den);applyTools();
+  }
+  renderText();renderSheet();
+};
+
+/* guardar e abrir projecto */
+function slug(s){return String(s||'').split('\n')[0].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40);}
+function download(href,name){
+  const a=document.createElement('a');a.href=href;a.download=name;
+  document.body.appendChild(a);a.click();a.remove();
+}
+$('#btnSave').onclick=()=>{
+  const data={v:2,S:{layout:S.layout,model:S.model,pt:S.pt,verts:S.verts,inset:S.inset,dateBlank:S.dateBlank,dimRect:S.dimRect,sig:S.sig},f:{}};
+  FIELDS.forEach(f=>data.f[f]=$('#f-'+f).value);
+  const url=URL.createObjectURL(new Blob([JSON.stringify(data)],{type:'application/json'}));
+  download(url,'croquis-'+(slug(data.f.owner)||'projecto')+'.json');
+  setTimeout(()=>URL.revokeObjectURL(url),3000);
+};
+$('#btnOpen').onclick=()=>$('#openFile').click();
+$('#openFile').addEventListener('change',e=>{
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const d=JSON.parse(r.result);
+      Object.assign(S,d.S);
+      $('#f-model').value=S.model;$('#f-layout').value=S.layout;
+      FIELDS.forEach(k=>{if(d.f&&d.f[k]!==undefined)$('#f-'+k).value=d.f[k];});
+      $('#f-inset').checked=S.inset;$('#f-datablank').checked=S.dateBlank;$('#f-dimrect').checked=!!S.dimRect;applyBasemap();
+      applyModelUI();applyLayout();
+      edMk.setLatLng([S.pt.lat,S.pt.lng]);ed.setView([S.pt.lat,S.pt.lng],17);
+      drawEdVerts();renderCoordInfo();renderVList();renderText();
+    }catch(err){alert('Ficheiro de projecto inválido.');}
+    e.target.value='';
+  };
+  r.readAsText(f);
+});
+
+/* imprimir / PDF */
+$('#btnPrint').onclick=()=>{showTab('folha');setTimeout(()=>window.print(),1400);};
+window.addEventListener('beforeprint',()=>{const sh=curSheet();sh.style.transform='none';$('#sheetWrap').style.height='auto';renderSheet();});
+window.addEventListener('afterprint',fitSheet);
+window.addEventListener('resize',layout);
+
+/* imagem em alta qualidade (JPG / PNG) */
+const H2I=[
+  'https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.8.1/html-to-image.min.js',
+  'https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js'
+];
+function loadScript(u){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=u;s.onload=res;s.onerror=rej;document.head.appendChild(s);});}
+async function ensureH2I(){
+  if(window.htmlToImage)return true;
+  for(const u of H2I){try{await loadScript(u);if(window.htmlToImage)return true;}catch(e){}}
+  return false;
+}
+async function embedTiles(sh){
+  const undo=[],failed=new Set();
+  const imgs=[...sh.querySelectorAll('img.leaflet-tile')];
+  await Promise.all(imgs.map(async img=>{
+    const src=img.src;if(!src||src.startsWith('data:'))return;
+    try{
+      const r=await fetch(src,{mode:'cors'});if(!r.ok)throw new Error('http '+r.status);
+      const blob=await r.blob();
+      const d=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=rej;fr.readAsDataURL(blob);});
+      undo.push([img,src]);img.src=d;
+    }catch(e){const lf=img.closest('.lf');failed.add(lf?lf.id:'?');}
+  }));
+  return {undo,failed};
+}
+async function exportImage(kind){
+  const msg=$('#expMsg');msg.className='msg';msg.textContent='A preparar a imagem…';
+  if(!(await ensureH2I())){msg.className='msg err';msg.textContent='Não consegui carregar o gerador de imagem (precisa de internet). Use “Imprimir / PDF”.';return;}
+  showTab('folha');await wait(600);renderSheet();await wait(1500);
+  const sh=curSheet();
+  sh.style.transform='none';
+  const W=sh.offsetWidth,H=sh.offsetHeight;
+  msg.textContent='A juntar os mapas…';
+  const emb=await embedTiles(sh);await wait(900);
+  const base={backgroundColor:'#ffffff',cacheBust:false,skipFonts:true,fontEmbedCSS:'',width:W,height:H,
+    imagePlaceholder:'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==',
+    style:{transform:'none',boxShadow:'none',margin:'0'}};
+  let url=null,err='';
+  for(const ratio of [3,2,1.5,1]){
+    msg.textContent='A gerar a imagem ('+ratio+'×)…';await wait(50);
+    try{
+      const o=Object.assign({pixelRatio:ratio},base);
+      url=kind==='jpg'?await htmlToImage.toJpeg(sh,Object.assign(o,{quality:0.95})):await htmlToImage.toPng(sh,o);
+      if(url&&url.length>5000)break;
+      url=null;
+    }catch(e){url=null;err=(e&&(e.message||e.type))||String(e);}
+  }
+  emb.undo.forEach(p=>{p[0].src=p[1];});
+  fitSheet();
+  if(!url){msg.className='msg err';msg.textContent='Não foi possível gerar a imagem neste aparelho'+(err?' ('+String(err).slice(0,80)+')':'')+'. Use “Imprimir / PDF”.';return;}
+  download(url,'croquis-'+(slug($('#f-owner').value)||'projecto')+'.'+(kind==='jpg'?'jpg':'png'));
+  const names={mapA:'mapa de cima',mapB:'satélite',mapC:'detalhe',mapD:'satélite',mapE:'mapa ampliado','?':'mapa'};
+  if(emb.failed.size){msg.className='msg err';msg.textContent='Imagem gerada, mas faltam partes do mapa ('+[...emb.failed].map(k=>names[k]||k).join(', ')+'). Experimente outro mapa de cima ou use “Imprimir / PDF”.';}
+  else{msg.className='msg';msg.textContent='Imagem gerada. Confirme que os mapas aparecem completos antes de enviar.';}
+}
+$('#btnView').onclick=()=>{realSize=!realSize;$('#sheetWrap').classList.toggle('real',realSize);$('#btnView').textContent=realSize?'Ajustar ao ecrã':'Ver tamanho real';fitSheet();};
+$('#btnJpg').onclick=()=>exportImage('jpg');
+$('#btnPng').onclick=()=>exportImage('png');
+
+/* valores iniciais (dados do cliente fornecidos) */
+$('#f-owner').value='Assembleia de Deus Pentecostal\nCentro Novas Alegrias\nCongregação Filadélfia';
+$('#f-bairro').value='Estalagem';
+$('#f-municipio').value='Viana';
+$('#f-provincia').value='Luanda';
+$('#f-ref').value='Mamã Gorda, ao pé do Capredio';
+$('#f-data').value=new Date().toISOString().slice(0,10);
+$('#f-espec').value=MODELS.terreno.espec;
+$('#f-fins').value=MODELS.terreno.fins;
+$('#f-regtipo').value='Nº de registo';
+$('#f-zA').value=15;$('#f-zB').value=17;$('#f-zC').value=18;$('#f-zD').value=19;$('#f-zE').value=19;
+applyModelUI();renderCoordInfo();drawEdVerts();renderVList();renderText();applyLayout();
+window.addEventListener('load',layout);
+</script>
+</body>
+</html>
